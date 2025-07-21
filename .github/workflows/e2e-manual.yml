@@ -1,0 +1,61 @@
+name: Testes E2E (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_scope:
+        description: 'Escopo dos testes'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - full
+          - single
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt -r requirements-test.txt
+
+    - name: Run E2E tests
+      env:
+        REDIS_URL: redis://localhost:6379
+        TINY_API_TOKEN: ${{ secrets.TINY_API_TOKEN }}
+        TEST_SCOPE: ${{ inputs.test_scope }}
+      run: |
+        cd backend
+        if [ "$TEST_SCOPE" = "smoke" ]; then
+          echo "🔥 Running smoke tests..."
+          python -m pytest tests/e2e/test_smoke.py -v
+        elif [ "$TEST_SCOPE" = "single" ]; then
+          echo "🧪 Running single test..."
+          python -m pytest tests/e2e/test_tiny_integration.py::test_entrada_estoque_completa -v
+        else
+          echo "🚀 Running full E2E suite..."
+          python -m pytest tests/e2e/ -v
+        fi
+
+    - name: Cleanup report
+      if: always()
+      run: |
+        echo "### 🧹 Relatório de Limpeza E2E ###"
+        echo "Testes E2E executados com reversão automática de alterações"

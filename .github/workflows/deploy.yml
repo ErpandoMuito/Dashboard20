@@ -1,0 +1,41 @@
+name: Deploy para Fly.io
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Fly.io
+      uses: superfly/flyctl-actions/setup-flyctl@master
+
+    - name: Deploy to Fly.io
+      env:
+        FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      run: |
+        flyctl deploy --remote-only --app dashboard-estoque-v2
+
+    - name: Health Check
+      run: |
+        sleep 30
+        curl -f https://dashboard-estoque-v2.fly.dev/health || exit 1
+
+    - name: Notify deploy
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deploy realizado com sucesso!"
+        else
+          echo "❌ Falha no deploy"
+        fi
