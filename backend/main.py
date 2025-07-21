@@ -18,35 +18,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Incluir rotas
+# Incluir rotas da API
 app.include_router(estoque.router, prefix="/api/v2/estoque", tags=["estoque"])
 
-@app.get("/")
-async def root():
-    return {"message": "Dashboard Estoque API v2.0", "status": "online"}
-
-@app.get("/health")
+# Health check endpoint
+@app.get("/api/health")
 async def health_check():
     return {"status": "healthy"}
 
+# API info endpoint
+@app.get("/api")
+async def api_info():
+    return {"message": "Dashboard Estoque API v2.0", "status": "online"}
+
 # Servir arquivos estáticos do React em produção
 if os.path.exists("./static"):
-    # Montar o diretório static inteiro, permitindo subdiretórios
-    app.mount("/static", StaticFiles(directory="./static"), name="static")
+    # Montar os arquivos estáticos corretamente
+    if os.path.exists("./static/static"):
+        # Caso o React tenha criado static/static
+        app.mount("/static", StaticFiles(directory="./static/static"), name="static")
+    else:
+        # Caso normal
+        app.mount("/static", StaticFiles(directory="./static"), name="static")
     
-    # Servir o app React para todas as rotas não-API
+    # Servir o app React
+    @app.get("/")
+    @app.get("/estoque")
     @app.get("/{full_path:path}")
-    async def serve_react_app(full_path: str):
-        # Se for uma rota de API, deixar passar
+    async def serve_react_app(full_path: str = ""):
+        # Se for uma rota de API, retornar 404
         if full_path.startswith("api/"):
-            return {"detail": "Not Found"}, 404
+            return {"detail": "Not Found"}
         
-        # Verificar se é um arquivo estático
-        static_file = os.path.join("./static", full_path)
-        if os.path.exists(static_file) and os.path.isfile(static_file):
-            return FileResponse(static_file)
-        
-        # Para qualquer outra rota, servir o index.html (React Router)
+        # Sempre servir o index.html para o React Router
         return FileResponse('./static/index.html')
 
 if __name__ == "__main__":

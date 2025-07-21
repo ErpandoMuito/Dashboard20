@@ -9,7 +9,7 @@ const EntradaEstoque = () => {
     quantidade: '',
     descricao: '',
     data: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-    deposito: 'Geral'
+    deposito: 'FUNDIÇÃO'
   });
 
   const [loading, setLoading] = useState(false);
@@ -18,10 +18,36 @@ const EntradaEstoque = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Formatar código do produto
+    if (name === 'codigo_produto') {
+      // Remover tudo que não for número
+      const numeros = value.replace(/\D/g, '');
+      if (numeros) {
+        // Formatar como PH-XXX
+        setFormData(prev => ({
+          ...prev,
+          [name]: `PH-${numeros}`
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [name]: ''
+        }));
+      }
+    } else if (name === 'quantidade') {
+      // Permitir apenas números positivos
+      const numero = value.replace(/\D/g, '');
+      setFormData(prev => ({
+        ...prev,
+        [name]: numero
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const buscarProduto = async () => {
@@ -46,8 +72,13 @@ const EntradaEstoque = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.codigo_produto || !formData.quantidade) {
+    if (!formData.codigo_produto || !formData.quantidade || !formData.descricao || !formData.data) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+    
+    if (parseInt(formData.quantidade) <= 0) {
+      toast.error('A quantidade deve ser maior que zero');
       return;
     }
 
@@ -70,7 +101,7 @@ const EntradaEstoque = () => {
         quantidade: '',
         descricao: '',
         data: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        deposito: 'Geral'
+        deposito: 'FUNDIÇÃO'
       });
       setProdutoInfo(null);
 
@@ -104,7 +135,7 @@ const EntradaEstoque = () => {
               name="codigo_produto"
               value={formData.codigo_produto}
               onChange={handleChange}
-              placeholder="Ex: PH-510"
+              placeholder="Digite: 510 ou PH-510"
               style={{ flex: 1 }}
               required
             />
@@ -139,13 +170,14 @@ const EntradaEstoque = () => {
             onChange={handleChange}
             placeholder="100"
             min="1"
+            step="1"
             required
           />
         </div>
 
         <div className="form-group">
           <label htmlFor="descricao">
-            Descrição/Observações
+            Descrição/Observações *
           </label>
           <textarea
             id="descricao"
@@ -154,6 +186,7 @@ const EntradaEstoque = () => {
             onChange={handleChange}
             placeholder="Entrada de produção, NF 12345, etc..."
             rows="3"
+            required
           />
         </div>
 
@@ -171,22 +204,6 @@ const EntradaEstoque = () => {
           />
         </div>
 
-        <div className="form-group">
-          <label htmlFor="deposito">
-            Depósito
-          </label>
-          <select
-            id="deposito"
-            name="deposito"
-            value={formData.deposito}
-            onChange={handleChange}
-          >
-            <option value="Geral">Geral</option>
-            <option value="Fundição">Fundição</option>
-            <option value="Matriz">Matriz</option>
-            <option value="Filial">Filial</option>
-          </select>
-        </div>
 
         <button
           type="submit"
