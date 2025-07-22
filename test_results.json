@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-07-21T21:22:10.931162",
+  "url": "https://dashboard-estoque-v2.fly.dev/teste3",
+  "nota": 9.183673469387756,
+  "resultados": {
+    "health": {
+      "total_tests": 2,
+      "passed": 0,
+      "failed": 2,
+      "success_rate": 0
+    },
+    "produtos": {
+      "total_tests": 3,
+      "passed": 0,
+      "failed": 3,
+      "avg_response_time": 0.12728428840637207,
+      "min_response_time": 0.12728428840637207,
+      "max_response_time": 0.12728428840637207,
+      "p95_response_time": 0.12728428840637207,
+      "success_rate": 0.0
+    },
+    "concurrent": {
+      "total_tests": 10,
+      "passed": 10,
+      "failed": 0,
+      "avg_response_time": 0.15729732513427735,
+      "min_response_time": 0.14303278923034668,
+      "max_response_time": 0.17127585411071777,
+      "p95_response_time": 0.17127585411071777,
+      "success_rate": 100.0
+    },
+    "rate_limit": {
+      "total_tests": 30,
+      "passed": 30,
+      "failed": 0,
+      "avg_response_time": 0.13332281907399496,
+      "min_response_time": 0.11986875534057617,
+      "max_response_time": 0.16267800331115723,
+      "p95_response_time": 0.15775668621063232,
+      "success_rate": 100.0
+    },
+    "recovery": {
+      "total_tests": 3,
+      "passed": 1,
+      "failed": 2,
+      "avg_response_time": 0.13572033246358237,
+      "min_response_time": 0.12862682342529297,
+      "max_response_time": 0.14012408256530762,
+      "p95_response_time": 0.14012408256530762,
+      "success_rate": 33.33333333333333
+    },
+    "cache": {
+      "total_tests": 1,
+      "passed": 0,
+      "failed": 1,
+      "success_rate": 0
+    }
+  }
+}

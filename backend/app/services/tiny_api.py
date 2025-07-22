@@ -76,15 +76,20 @@ class TinyAPIClient:
     ) -> Dict[str, Any]:
         """Altera estoque do produto no Tiny"""
         try:
-            data = {
-                'id': produto_id,
-                'tipo': tipo,  # E=Entrada, S=Saída
+            # Monta o objeto estoque conforme documentação
+            estoque_data = {
+                'idProduto': produto_id,
                 'quantidade': str(quantidade),
+                'tipo': tipo,  # E=Entrada, S=Saída, B=Balanço
                 'deposito': deposito,
                 'observacoes': observacoes or f'Entrada via Dashboard v2.0'
             }
             
-            response = await self._make_request('produto.alterar.estoque.php', data)
+            data = {
+                'estoque': json.dumps(estoque_data)  # Tiny espera JSON string
+            }
+            
+            response = await self._make_request('produto.atualizar.estoque.php', data)
             
             if response.get('retorno', {}).get('status') == 'OK':
                 return {

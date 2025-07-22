@@ -59,7 +59,10 @@ async def entrada_estoque(entrada: EntradaEstoqueRequest):
                 'saldo': saldo_atual,
                 'ultima_atualizacao': entrada.data.isoformat()
             }
-            await redis_client.set(cache_key, cache_data, ex=3600)  # Cache por 1 hora
+            try:
+                await redis_client.set(cache_key, cache_data, ex=3600)  # Cache por 1 hora
+            except Exception as e:
+                logger.debug(f"Não foi possível cachear produto: {e}")
         
         # 5. Registrar operação no histórico
         historico_key = f"estoque:historico:{entrada.codigo_produto}:{entrada.data.timestamp()}"
@@ -71,7 +74,10 @@ async def entrada_estoque(entrada: EntradaEstoqueRequest):
             'data': entrada.data.isoformat(),
             'usuario': 'sistema'  # Futuramente pegar do auth
         }
-        await redis_client.set(historico_key, historico_data)
+        try:
+            await redis_client.set(historico_key, historico_data)
+        except Exception as e:
+            logger.debug(f"Não foi possível salvar histórico: {e}")
         
         return EntradaEstoqueResponse(
             success=True,
@@ -96,12 +102,14 @@ async def buscar_produto(codigo: str):
     Busca informações do produto pelo código
     """
     try:
-        # Tentar buscar do cache primeiro
+        # Tentar buscar do cache primeiro (se Redis estiver disponível)
         cache_key = f"estoque:produto:{codigo}"
-        cached = await redis_client.get(cache_key)
-        
-        if cached:
-            return ProdutoInfo(**cached)
+        try:
+            cached = await redis_client.get(cache_key)
+            if cached:
+                return ProdutoInfo(**cached)
+        except Exception as e:
+            logger.debug(f"Cache não disponível: {e}")
         
         # Buscar do Tiny
         produto = await tiny_client.buscar_produto_por_codigo(codigo)
@@ -127,8 +135,11 @@ async def buscar_produto(codigo: str):
             saldo=saldo
         )
         
-        # Salvar no cache
-        await redis_client.set(cache_key, produto_info.dict(), ex=3600)
+        # Salvar no cache (se Redis estiver disponível)
+        try:
+            await redis_client.set(cache_key, produto_info.dict(), ex=3600)
+        except Exception as e:
+            logger.debug(f"Não foi possível cachear: {e}")
         
         return produto_info
         
