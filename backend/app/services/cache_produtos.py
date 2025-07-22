@@ -141,6 +141,17 @@ class CacheProdutos:
         logger.info(f"População de cache concluída: {resultado}")
         return resultado
     
+    async def salvar_produto_cache(self, codigo: str, produto_id: str) -> bool:
+        """Salva ID do produto no cache"""
+        try:
+            chave = f"{self.prefix}{codigo}"
+            await redis_client.set(chave, produto_id, ex=self.ttl)
+            logger.info(f"Produto {codigo} (ID: {produto_id}) salvo no cache")
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao salvar produto no cache: {e}")
+            return False
+    
     async def listar_produtos_cacheados(self, prefixo: str = "PH") -> List[Dict[str, str]]:
         """Lista produtos cacheados com determinado prefixo"""
         try:

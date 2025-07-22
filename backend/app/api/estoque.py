@@ -317,3 +317,63 @@ async def limpar_cache_produtos(prefixo: Optional[str] = None):
             status_code=500,
             detail=f"Erro ao limpar cache: {str(e)}"
         )
+
+@router.post("/limpar-cache")
+async def limpar_cache_post():
+    """
+    Limpa cache de produtos (POST para compatibilidade)
+    """
+    try:
+        count = await cache_produtos.limpar_cache()
+        
+        return {
+            "success": True,
+            "message": f"{count} chaves removidas do cache"
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao limpar cache: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao limpar cache: {str(e)}"
+        )
+
+@router.post("/popular-cache-bulk")
+async def popular_cache_bulk(data: dict):
+    """
+    Popula cache com múltiplos produtos de uma vez
+    """
+    try:
+        produtos = data.get('produtos', [])
+        logger.info(f"Populando cache com {len(produtos)} produtos")
+        
+        sucesso = 0
+        falhas = 0
+        
+        for produto in produtos:
+            try:
+                produto_id = produto.get('id')
+                codigo = produto.get('codigo')
+                
+                if produto_id and codigo:
+                    await cache_produtos.salvar_produto_cache(codigo, produto_id)
+                    sucesso += 1
+                else:
+                    falhas += 1
+            except Exception as e:
+                logger.error(f"Erro ao cachear {produto}: {e}")
+                falhas += 1
+        
+        return {
+            "success": True,
+            "total": len(produtos),
+            "sucesso": sucesso,
+            "falhas": falhas
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao popular cache em lote: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao popular cache: {str(e)}"
+        )
