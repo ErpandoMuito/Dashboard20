@@ -49,24 +49,8 @@ if static_path.exists():
     if static_static.exists():
         logger.info(f"Encontrada subpasta static/static com: {list(static_static.iterdir())}")
     
-    # Montar arquivos estáticos na raiz também
-    app.mount("/static", StaticFiles(directory="static/static"), name="static_files")
-    app.mount("/js", StaticFiles(directory="static/static/js"), name="js")
-    app.mount("/css", StaticFiles(directory="static/static/css"), name="css")
-    
-    # Servir arquivos da raiz static também
-    @app.get("/static/{file_path:path}")
-    async def serve_static(file_path: str):
-        logger.info(f"Requisição para static: {file_path}")
-        file = static_path / file_path
-        if file.exists():
-            return FileResponse(file)
-        # Tentar na subpasta
-        file = static_path / "static" / file_path
-        if file.exists():
-            return FileResponse(file)
-        logger.warning(f"Arquivo não encontrado: {file_path}")
-        return {"error": "Not found"}, 404
+    # Montar arquivos estáticos - IMPORTANTE: o HTML espera /static/css e /static/js
+    app.mount("/static", StaticFiles(directory="static"), name="static_root")
     
     # Catch-all para React Router
     @app.get("/{full_path:path}")
