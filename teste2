@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""
+Teste do DashboardNext - Sistema de Debug Melhorado
+Este arquivo testa a funcionalidade do sistema de debug localizado em dashboard-v2/teste2/
+"""
+
+import os
+import sys
+import subprocess
+import time
+import requests
+import json
+from datetime import datetime
+
+# Cores para terminal
+class Colors:
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    MAGENTA = '\033[95m'
+    CYAN = '\033[96m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+def log(message, color=None, prefix=""):
+    """Log com timestamp e cor"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    if color:
+        print(f"[{timestamp}] {prefix}{color}{message}{Colors.END}")
+    else:
+        print(f"[{timestamp}] {prefix}{message}")
+
+def header(text):
+    """Imprime um cabeçalho formatado"""
+    print(f"\n{Colors.CYAN}{'='*70}{Colors.END}")
+    print(f"{Colors.CYAN}  {text}{Colors.END}")
+    print(f"{Colors.CYAN}{'='*70}{Colors.END}\n")
+
+def run_command(command, cwd=None, check_output=False):
+    """Executa um comando e retorna o resultado"""
+    try:
+        if check_output:
+            result = subprocess.check_output(command, shell=True, cwd=cwd, stderr=subprocess.STDOUT)
+            return result.decode('utf-8').strip()
+        else:
+            result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
+            return result.returncode == 0, result.stdout, result.stderr
+    except Exception as e:
+        log(f"Erro ao executar comando: {e}", Colors.RED)
+        return False, "", str(e) if not check_output else ""
+
+def check_dependencies():
+    """Verifica se as dependências estão instaladas"""
+    header("Verificando Dependências")
+    
+    dependencies = {
+        "python3": "python3 --version",
+        "pip": "pip3 --version",
+        "redis-cli": "redis-cli --version"
+    }
+    
+    all_ok = True
+    for name, command in dependencies.items():
+        try:
+            output = run_command(command, check_output=True)
+            log(f"{name}: {output}", Colors.GREEN, "✓ ")
+        except:
+            log(f"{name}: NÃO ENCONTRADO", Colors.RED, "✗ ")
+            all_ok = False
+    
+    return all_ok
+
+def check_redis():
+    """Verifica se o Redis está rodando"""
+    header("Verificando Redis")
+    
+    try:
+        output = run_command("redis-cli ping", check_output=True)
+        if output == "PONG":
+            log("Redis está rodando", Colors.GREEN, "✓ ")
+            
+            # Obter informações do Redis
+            info = run_command("redis-cli INFO server | grep redis_version", check_output=True)
+            if info:
+                log(f"Versão: {info}", Colors.BLUE, "  ")
+            return True
+        else:
+            log("Redis não está respondendo", Colors.RED, "✗ ")
+            return False
+    except:
+        log("Redis não está instalado ou não está rodando", Colors.RED, "✗ ")
+        return False
+
+def start_server():
+    """Inicia o servidor de teste"""
+    header("Iniciando Servidor de Teste")
+    
+    teste2_dir = os.path.join(os.path.dirname(__file__), "dashboard-v2", "teste2")
+    
+    if not os.path.exists(teste2_dir):
+        log(f"Diretório não encontrado: {teste2_dir}", Colors.RED, "✗ ")
+        return None
+    
+    log(f"Diretório de teste: {teste2_dir}", Colors.BLUE)
+    
+    # Verificar se o script existe
+    run_script = os.path.join(teste2_dir, "run.sh")
+    if not os.path.exists(run_script):
+        log("Script run.sh não encontrado", Colors.RED, "✗ ")
+        return None
+    
+    # Tornar o script executável
+    os.chmod(run_script, 0o755)
+    
+    # Iniciar o servidor em background
+    log("Iniciando servidor em background...", Colors.YELLOW)
+    process = subprocess.Popen(
+        ["./run.sh"],
+        cwd=teste2_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    
+    # Aguardar servidor iniciar
+    log("Aguardando servidor inicializar...", Colors.YELLOW)
+    time.sleep(5)
+    
+    # Verificar se o processo ainda está rodando
+    if process.poll() is not None:
+        stdout, stderr = process.communicate()
+        log("Servidor falhou ao iniciar!", Colors.RED, "✗ ")
+        log(f"STDOUT: {stdout}", Colors.YELLOW)
+        log(f"STDERR: {stderr}", Colors.RED)
+        return None
+    
+    log("Servidor iniciado com sucesso", Colors.GREEN, "✓ ")
+    return process
+
+def test_endpoints():
+    """Testa os endpoints do servidor"""
+    header("Testando Endpoints")
+    
+    base_url = "http://localhost:8000"
+    
+    # Lista de endpoints para testar
+    endpoints = [
+        ("/", "API Root", None),
+        ("/api/health", "Health Check", lambda r: r.get("status") == "healthy"),
+        ("/debug/env", "Variáveis de Ambiente", lambda r: "environment_variables" in r),
+        ("/debug/redis", "Status Redis", lambda r: "connected" in r),
+        ("/debug/static", "Arquivos Estáticos", lambda r: "files" in r),
+        ("/debug/logs", "Logs do Sistema", lambda r: "startup_logs" in r),
+    ]
+    
+    results = []
+    
+    for endpoint, name, validator in endpoints:
+        try:
+            log(f"Testando {name}...", Colors.BLUE)
+            response = requests.get(f"{base_url}{endpoint}", timeout=5)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Validar resposta se houver validador
+                if validator and not validator(data):
+                    log(f"{name}: Resposta inválida", Colors.YELLOW, "⚠ ")
+                    results.append((name, "warning"))
+                else:
+                    log(f"{name}: OK", Colors.GREEN, "✓ ")
+                    results.append((name, "success"))
+                
+                # Mostrar preview dos dados
+                preview = json.dumps(data, indent=2)[:200]
+                if len(json.dumps(data)) > 200:
+                    preview += "..."
+                log(f"Preview: {preview}", Colors.CYAN, "  ")
+            else:
+                log(f"{name}: Erro HTTP {response.status_code}", Colors.RED, "✗ ")
+                results.append((name, "error"))
+        
+        except requests.exceptions.Timeout:
+            log(f"{name}: Timeout", Colors.RED, "✗ ")
+            results.append((name, "timeout"))
+        except Exception as e:
+            log(f"{name}: Erro - {str(e)}", Colors.RED, "✗ ")
+            results.append((name, "error"))
+    
+    return results
+
+def test_ui():
+    """Testa a interface web"""
+    header("Testando Interface Web")
+    
+    try:
+        response = requests.get("http://localhost:8000/static/index.html", timeout=5)
+        if response.status_code == 200:
+            log("Interface web disponível", Colors.GREEN, "✓ ")
+            log("Acesse: http://localhost:8000/static/index.html", Colors.CYAN, "  ")
+            return True
+        else:
+            log(f"Interface web erro: HTTP {response.status_code}", Colors.RED, "✗ ")
+            return False
+    except Exception as e:
+        log(f"Interface web não acessível: {e}", Colors.RED, "✗ ")
+        return False
+
+def show_summary(results):
+    """Mostra resumo dos testes"""
+    header("Resumo dos Testes")
+    
+    success = sum(1 for _, status in results if status == "success")
+    warnings = sum(1 for _, status in results if status == "warning")
+    errors = sum(1 for _, status in results if status in ["error", "timeout"])
+    
+    total = len(results)
+    
+    log(f"Total de testes: {total}", Colors.BOLD)
+    log(f"Sucessos: {success}", Colors.GREEN if success > 0 else Colors.YELLOW)
+    log(f"Avisos: {warnings}", Colors.YELLOW if warnings > 0 else Colors.GREEN)
+    log(f"Erros: {errors}", Colors.RED if errors > 0 else Colors.GREEN)
+    
+    print(f"\n{Colors.BOLD}Detalhes:{Colors.END}")
+    for name, status in results:
+        icon = "✓" if status == "success" else "⚠" if status == "warning" else "✗"
+        color = Colors.GREEN if status == "success" else Colors.YELLOW if status == "warning" else Colors.RED
+        log(f"{name}: {status.upper()}", color, f"{icon} ")
+    
+    if success == total:
+        log("\nTodos os testes passaram! 🎉", Colors.GREEN, "★ ")
+    elif errors == 0:
+        log("\nTestes concluídos com avisos", Colors.YELLOW, "⚠ ")
+    else:
+        log("\nAlguns testes falharam", Colors.RED, "✗ ")
+
+def main():
+    """Função principal"""
+    print(f"{Colors.BOLD}{Colors.MAGENTA}")
+    print("╔════════════════════════════════════════════════════════════════╗")
+    print("║           TESTE DO DASHBOARDNEXT - SISTEMA DE DEBUG           ║")
+    print("║                      LOGS SÃO VIDA! 🔍                        ║")
+    print("╚════════════════════════════════════════════════════════════════╝")
+    print(f"{Colors.END}")
+    
+    # Verificar dependências
+    if not check_dependencies():
+        log("\nAlgumas dependências estão faltando!", Colors.RED)
+        return
+    
+    # Verificar Redis
+    redis_ok = check_redis()
+    if not redis_ok:
+        log("\nRedis não está rodando. Tentando iniciar...", Colors.YELLOW)
+        success, _, _ = run_command("redis-server --daemonize yes")
+        if success:
+            time.sleep(2)
+            redis_ok = check_redis()
+    
+    # Iniciar servidor
+    server_process = start_server()
+    if not server_process:
+        log("\nFalha ao iniciar servidor!", Colors.RED)
+        return
+    
+    try:
+        # Aguardar um pouco mais para garantir inicialização completa
+        log("\nAguardando inicialização completa...", Colors.YELLOW)
+        time.sleep(3)
+        
+        # Testar endpoints
+        results = test_endpoints()
+        
+        # Testar interface web
+        ui_ok = test_ui()
+        results.append(("Interface Web", "success" if ui_ok else "error"))
+        
+        # Mostrar resumo
+        show_summary(results)
+        
+        # Dicas finais
+        header("Próximos Passos")
+        log("1. Acesse a interface web: http://localhost:8000/static/index.html", Colors.CYAN)
+        log("2. Veja os logs em tempo real: tail -f dashboard-v2/teste2/debug.log", Colors.CYAN)
+        log("3. Execute testes específicos: cd dashboard-v2/teste2 && python3 test_debug.py", Colors.CYAN)
+        log("4. Pare o servidor: Pressione Ctrl+C", Colors.CYAN)
+        
+        log("\nServidor rodando. Pressione Ctrl+C para parar...", Colors.GREEN)
+        
+        # Manter o servidor rodando
+        server_process.wait()
+        
+    except KeyboardInterrupt:
+        log("\n\nEncerrando servidor...", Colors.YELLOW)
+        server_process.terminate()
+        server_process.wait()
+        log("Servidor encerrado", Colors.GREEN, "✓ ")
+    except Exception as e:
+        log(f"\nErro inesperado: {e}", Colors.RED)
+        if server_process:
+            server_process.terminate()
+
+if __name__ == "__main__":
+    main()

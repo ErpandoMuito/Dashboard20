@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""
+Teste 3 - Dashboard v2.0
+Teste de validação da implementação pragmática com foco em confiabilidade
+"""
+
+import os
+import sys
+import subprocess
+import time
+import requests
+import json
+from datetime import datetime
+
+# Cores para output
+GREEN = '\033[92m'
+RED = '\033[91m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
+RESET = '\033[0m'
+
+class DashboardTeste3:
+    def __init__(self):
+        self.base_dir = "/Users/rodrigo/Documents/DashboardNovo/dashboard-v2/teste3"
+        self.api_url = "http://localhost:8000"
+        self.frontend_url = "http://localhost:3000"
+        self.errors = []
+        self.warnings = []
+        
+    def print_header(self, text):
+        """Imprime cabeçalho formatado"""
+        print(f"\n{BLUE}{'='*60}{RESET}")
+        print(f"{BLUE}{text.center(60)}{RESET}")
+        print(f"{BLUE}{'='*60}{RESET}\n")
+        
+    def print_success(self, text):
+        """Imprime mensagem de sucesso"""
+        print(f"{GREEN}✓ {text}{RESET}")
+        
+    def print_error(self, text):
+        """Imprime mensagem de erro"""
+        print(f"{RED}✗ {text}{RESET}")
+        self.errors.append(text)
+        
+    def print_warning(self, text):
+        """Imprime mensagem de aviso"""
+        print(f"{YELLOW}⚠ {text}{RESET}")
+        self.warnings.append(text)
+        
+    def print_info(self, text):
+        """Imprime informação"""
+        print(f"  {text}")
+        
+    def check_environment(self):
+        """Verifica ambiente e dependências"""
+        self.print_header("Verificando Ambiente")
+        
+        # Verifica se o diretório teste3 existe
+        if not os.path.exists(self.base_dir):
+            self.print_error(f"Diretório {self.base_dir} não encontrado")
+            return False
+            
+        self.print_success("Diretório teste3 encontrado")
+        
+        # Verifica Docker
+        try:
+            subprocess.run(["docker", "--version"], capture_output=True, check=True)
+            self.print_success("Docker instalado")
+        except:
+            self.print_error("Docker não está instalado ou não está no PATH")
+            return False
+            
+        # Verifica Docker Compose
+        try:
+            subprocess.run(["docker-compose", "--version"], capture_output=True, check=True)
+            self.print_success("Docker Compose instalado")
+        except:
+            self.print_error("Docker Compose não está instalado ou não está no PATH")
+            return False
+            
+        # Verifica arquivo .env
+        env_file = os.path.join(self.base_dir, ".env")
+        if not os.path.exists(env_file):
+            self.print_warning(".env não encontrado - criando exemplo")
+            self.create_env_example()
+        else:
+            self.print_success(".env encontrado")
+            
+        return True
+        
+    def create_env_example(self):
+        """Cria arquivo .env de exemplo"""
+        env_content = """# Configurações do Dashboard v2.0 - Teste 3
+
+# API do Tiny ERP
+TINY_API_TOKEN=seu_token_aqui
+
+# Redis
+REDIS_URL=redis://redis:6379/0
+REDIS_MAX_CONNECTIONS=50
+
+# Backend
+LOG_LEVEL=INFO
+ENV=production
+TINY_API_TIMEOUT=30
+TINY_API_MAX_RETRIES=3
+
+# Frontend
+REACT_APP_API_URL=http://localhost:8000
+NODE_ENV=production
+"""
+        env_path = os.path.join(self.base_dir, ".env")
+        with open(env_path, 'w') as f:
+            f.write(env_content)
+        self.print_info(f"Arquivo .env criado em {env_path}")
+        self.print_warning("Configure seu TINY_API_TOKEN antes de continuar")
+        
+    def check_services(self):
+        """Verifica se os serviços estão rodando"""
+        self.print_header("Verificando Serviços")
+        
+        services_ok = True
+        
+        # Verifica Redis
+        try:
+            subprocess.run(
+                ["docker", "exec", "dashboard_redis", "redis-cli", "ping"],
+                capture_output=True,
+                check=True
+            )
+            self.print_success("Redis respondendo")
+        except:
+            self.print_error("Redis não está respondendo")
+            services_ok = False
+            
+        # Verifica Backend
+        try:
+            response = requests.get(f"{self.api_url}/health", timeout=5)
+            if response.status_code == 200:
+                self.print_success("Backend API respondendo")
+                health_data = response.json()
+                self.print_info(f"Status: {health_data.get('status', 'unknown')}")
+            else:
+                self.print_error(f"Backend retornou status {response.status_code}")
+                services_ok = False
+        except Exception as e:
+            self.print_error(f"Backend não está acessível: {str(e)}")
+            services_ok = False
+            
+        # Verifica Frontend
+        try:
+            response = requests.get(self.frontend_url, timeout=5)
+            if response.status_code == 200:
+                self.print_success("Frontend respondendo")
+            else:
+                self.print_error(f"Frontend retornou status {response.status_code}")
+                services_ok = False
+        except Exception as e:
+            self.print_error(f"Frontend não está acessível: {str(e)}")
+            services_ok = False
+            
+        return services_ok
+        
+    def test_api_endpoints(self):
+        """Testa endpoints principais da API"""
+        self.print_header("Testando Endpoints da API")
+        
+        endpoints = [
+            {"method": "GET", "path": "/", "name": "Root"},
+            {"method": "GET", "path": "/health", "name": "Health Check"},
+            {"method": "GET", "path": "/health/detailed", "name": "Health Detalhado"},
+            {"method": "GET", "path": "/api/v2/notas", "name": "Listar Notas"},
+            {"method": "GET", "path": "/api/v2/pedidos", "name": "Listar Pedidos"},
+            {"method": "GET", "path": "/api/v2/produtos", "name": "Listar Produtos"},
+            {"method": "GET", "path": "/metrics", "name": "Métricas Prometheus"},
+        ]
+        
+        all_ok = True
+        
+        for endpoint in endpoints:
+            try:
+                url = f"{self.api_url}{endpoint['path']}"
+                response = requests.request(endpoint['method'], url, timeout=10)
+                
+                if response.status_code < 400:
+                    self.print_success(f"{endpoint['name']}: {response.status_code}")
+                    if endpoint['path'] == '/health/detailed':
+                        data = response.json()
+                        self.print_info(f"Redis: {data.get('redis', {}).get('status', 'unknown')}")
+                        self.print_info(f"API Tiny: {data.get('tiny_api', {}).get('status', 'unknown')}")
+                else:
+                    self.print_error(f"{endpoint['name']}: {response.status_code}")
+                    all_ok = False
+                    
+            except Exception as e:
+                self.print_error(f"{endpoint['name']}: {str(e)}")
+                all_ok = False
+                
+        return all_ok
+        
+    def test_redis_operations(self):
+        """Testa operações básicas do Redis"""
+        self.print_header("Testando Redis")
+        
+        try:
+            # Testa SET/GET
+            test_key = "test:dashboard:key"
+            test_value = json.dumps({"test": True, "timestamp": datetime.now().isoformat()})
+            
+            # SET
+            subprocess.run([
+                "docker", "exec", "dashboard_redis", 
+                "redis-cli", "SET", test_key, test_value
+            ], check=True)
+            self.print_success("Redis SET funcionando")
+            
+            # GET
+            result = subprocess.run([
+                "docker", "exec", "dashboard_redis",
+                "redis-cli", "GET", test_key
+            ], capture_output=True, text=True, check=True)
+            
+            if test_value in result.stdout:
+                self.print_success("Redis GET funcionando")
+            else:
+                self.print_error("Redis GET retornou valor incorreto")
+                
+            # DEL
+            subprocess.run([
+                "docker", "exec", "dashboard_redis",
+                "redis-cli", "DEL", test_key
+            ], check=True)
+            self.print_success("Redis DEL funcionando")
+            
+            # Info memory
+            result = subprocess.run([
+                "docker", "exec", "dashboard_redis",
+                "redis-cli", "INFO", "memory"
+            ], capture_output=True, text=True, check=True)
+            
+            for line in result.stdout.split('\\n'):
+                if 'used_memory_human' in line:
+                    self.print_info(f"Memória usada: {line.split(':')[1].strip()}")
+                    
+            return True
+            
+        except Exception as e:
+            self.print_error(f"Erro ao testar Redis: {str(e)}")
+            return False
+            
+    def check_logs(self):
+        """Verifica logs dos serviços"""
+        self.print_header("Verificando Logs")
+        
+        services = ["redis", "backend", "frontend"]
+        
+        for service in services:
+            try:
+                result = subprocess.run([
+                    "docker", "logs", f"dashboard_{service}", "--tail", "20"
+                ], capture_output=True, text=True)
+                
+                error_count = result.stderr.lower().count('error')
+                warning_count = result.stderr.lower().count('warning')
+                
+                if error_count > 0:
+                    self.print_warning(f"{service}: {error_count} erros encontrados nos logs")
+                else:
+                    self.print_success(f"{service}: Sem erros nos logs recentes")
+                    
+                if warning_count > 0:
+                    self.print_info(f"{service}: {warning_count} avisos nos logs")
+                    
+            except Exception as e:
+                self.print_error(f"Erro ao verificar logs de {service}: {str(e)}")
+                
+    def generate_report(self):
+        """Gera relatório final"""
+        self.print_header("Relatório de Testes")
+        
+        total_errors = len(self.errors)
+        total_warnings = len(self.warnings)
+        
+        if total_errors == 0:
+            self.print_success(f"Todos os testes passaram! 🎉")
+        else:
+            self.print_error(f"Total de erros encontrados: {total_errors}")
+            
+        if total_warnings > 0:
+            self.print_warning(f"Total de avisos: {total_warnings}")
+            
+        # Salva relatório
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "status": "PASS" if total_errors == 0 else "FAIL"
+        }
+        
+        report_path = os.path.join(os.path.dirname(__file__), "test_report.json")
+        with open(report_path, 'w') as f:
+            json.dump(report, f, indent=2)
+            
+        self.print_info(f"Relatório salvo em: {report_path}")
+        
+        return total_errors == 0
+        
+    def run(self):
+        """Executa todos os testes"""
+        self.print_header("Dashboard v2.0 - Teste 3")
+        print("Teste de validação da implementação pragmática")
+        print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Verifica ambiente
+        if not self.check_environment():
+            self.print_error("Ambiente não está configurado corretamente")
+            return False
+            
+        # Pergunta se deve iniciar os serviços
+        print(f"\n{YELLOW}Os serviços precisam estar rodando para continuar.{RESET}")
+        response = input("Deseja iniciar os serviços agora? (s/n): ").lower()
+        
+        if response == 's':
+            self.print_info("Iniciando serviços...")
+            os.chdir(self.base_dir)
+            subprocess.run(["docker-compose", "up", "-d"], check=True)
+            self.print_info("Aguardando serviços iniciarem...")
+            time.sleep(15)
+            
+        # Verifica serviços
+        if not self.check_services():
+            self.print_error("Serviços não estão funcionando corretamente")
+            self.print_info("Execute: cd dashboard-v2/teste3 && docker-compose up -d")
+            return False
+            
+        # Testa API
+        self.test_api_endpoints()
+        
+        # Testa Redis
+        self.test_redis_operations()
+        
+        # Verifica logs
+        self.check_logs()
+        
+        # Gera relatório
+        return self.generate_report()
+
+
+if __name__ == "__main__":
+    tester = DashboardTeste3()
+    success = tester.run()
+    sys.exit(0 if success else 1)

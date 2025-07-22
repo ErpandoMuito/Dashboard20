@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  flask-backend:
+    build: ./flask-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - VALKEY_PUBLIC_URL=redis://redis:6379
+      - TINY_API_TOKEN=${TINY_API_TOKEN}
+    depends_on:
+      - redis
+    volumes:
+      - ./flask-backend:/app
+    command: python app.py
+
+  react-frontend:
+    build: ./react-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    volumes:
+      - ./react-frontend:/app
+      - /app/node_modules
+    depends_on:
+      - flask-backend
+
+volumes:
+  redis_data:
