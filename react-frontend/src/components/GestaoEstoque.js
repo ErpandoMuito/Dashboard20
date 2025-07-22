@@ -1,15 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { estoqueAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import './GestaoEstoque.css';
 
 function GestaoEstoque() {
+  const [showModal, setShowModal] = useState(false);
   const [codigoProduto, setCodigoProduto] = useState('');
-  const [quantidade, setQuantidade] = useState('');
-  const [descricao, setDescricao] = useState('');
   const [produto, setProduto] = useState(null);
   const [loading, setLoading] = useState(false);
   const [ajustando, setAjustando] = useState(false);
+  
+  // Form fields
+  const [tipo, setTipo] = useState('E'); // E=Entrada, S=Saída
+  const [data, setData] = useState('');
+  const [hora, setHora] = useState('');
+  const [quantidade, setQuantidade] = useState('');
+  const [precoUnitario, setPrecoUnitario] = useState('');
+  const [observacoes, setObservacoes] = useState('');
+
+  // Set data e hora para ontem
+  useEffect(() => {
+    const ontem = new Date();
+    ontem.setDate(ontem.getDate() - 1);
+    
+    const dataFormatada = ontem.toLocaleDateString('pt-BR', {
+      day: '2d',
+      month: '2d',
+      year: 'numeric'
+    });
+    setData(dataFormatada);
+    
+    const horaFormatada = ontem.toLocaleTimeString('pt-BR', {
+      hour: '2d',
+      minute: '2d',
+      hour12: false
+    });
+    setHora(horaFormatada);
+  }, [showModal]);
+
+  // Atualizar preço quando produto for selecionado
+  useEffect(() => {
+    if (produto && produto.preco) {
+      const precoFormatado = produto.preco.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).replace('.', ',');
+      setPrecoUnitario(precoFormatado);
+    }
+  }, [produto]);
 
   const buscarProduto = async () => {
     if (!codigoProduto.trim()) {
@@ -21,7 +59,7 @@ function GestaoEstoque() {
     try {
       const data = await estoqueAPI.buscarProduto(codigoProduto.toUpperCase());
       setProduto(data);
-      toast.success(`Produto ${data.nome} encontrado!`);
+      setShowModal(true);
     } catch (error) {
       toast.error(`Produto ${codigoProduto} não encontrado`);
       setProduto(null);
@@ -31,12 +69,7 @@ function GestaoEstoque() {
     }
   };
 
-  const ajustarEstoque = async (tipo) => {
-    if (!produto) {
-      toast.error('Busque um produto primeiro');
-      return;
-    }
-
+  const handleSalvar = async () => {
     if (!quantidade || quantidade <= 0) {
       toast.error('Digite uma quantidade válida');
       return;
@@ -48,16 +81,15 @@ function GestaoEstoque() {
         produto.id,
         parseInt(quantidade),
         tipo,
-        descricao || `${tipo === 'E' ? 'Entrada' : 'Saída'} manual via Dashboard`
+        observacoes || `${tipo === 'E' ? 'Entrada' : 'Saída'} manual - ${data} ${hora}`
       );
 
       if (resultado.success) {
         toast.success(resultado.message);
-        // Limpa os campos
-        setQuantidade('');
-        setDescricao('');
-        // Busca o produto novamente para atualizar o estoque
-        await buscarProduto();
+        handleFechar();
+        // Limpar campos
+        setCodigoProduto('');
+        setProduto(null);
       } else {
         toast.error(resultado.error || 'Erro ao ajustar estoque');
       }
@@ -69,108 +101,144 @@ function GestaoEstoque() {
     }
   };
 
+  const handleFechar = () => {
+    setShowModal(false);
+    setQuantidade('');
+    setObservacoes('');
+    setTipo('E');
+  };
+
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !showModal) {
       buscarProduto();
     }
   };
 
   return (
-    <div className="gestao-estoque">
-      <h1>Gestão de Estoque</h1>
-      
-      <div className="busca-produto">
-        <div className="campo-busca">
-          <label>Código do Produto:</label>
+    <div className="gestao-estoque-container">
+      <div className="busca-section">
+        <h1>Gestão de Estoque</h1>
+        <div className="busca-form">
           <input
             type="text"
             value={codigoProduto}
             onChange={(e) => setCodigoProduto(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ex: PH-510"
-            className="input-codigo"
+            placeholder="Digite o código do produto (ex: PH-510)"
+            className="input-busca"
           />
           <button 
             onClick={buscarProduto}
             disabled={loading}
-            className="btn btn-buscar"
+            className="btn-buscar"
           >
             {loading ? 'Buscando...' : 'Buscar Produto'}
           </button>
         </div>
       </div>
 
-      {produto && (
-        <>
-          <div className="produto-info">
-            <h2>{produto.nome}</h2>
-            <p>Código: {produto.codigo}</p>
-            <p>Unidade: {produto.unidade}</p>
-            
-            <div className="estoque-atual">
-              <h3>Estoque Atual</h3>
-              <div className="saldo-total">
-                <span>Total:</span>
-                <strong>{produto.saldo_estoque?.Total || 0} {produto.unidade}</strong>
+      {showModal && produto && (
+        <div className="modal-overlay" onClick={handleFechar}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Lançamento de estoque</h2>
+              <button className="btn-fechar" onClick={handleFechar}>
+                fechar ×
+              </button>
+            </div>
+
+            <div className="produto-info-modal">
+              <h3>{produto.nome}</h3>
+              <p>Código: {produto.codigo} | Unidade: {produto.unidade}</p>
+              <p className="estoque-atual">Estoque atual: {produto.saldo_estoque?.Total || 0} {produto.unidade}</p>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Tipo</label>
+                <select 
+                  value={tipo} 
+                  onChange={(e) => setTipo(e.target.value)}
+                  className="select-tipo"
+                >
+                  <option value="E">Entrada</option>
+                  <option value="S">Saída</option>
+                </select>
               </div>
-              
-              {Object.entries(produto.saldo_estoque || {}).map(([deposito, saldo]) => {
-                if (deposito === 'Total') return null;
-                return (
-                  <div key={deposito} className="deposito">
-                    <span>{deposito}:</span>
-                    <span>{saldo} {produto.unidade}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
 
-          <div className="ajuste-estoque">
-            <h3>Ajustar Estoque</h3>
-            
-            <div className="campo">
-              <label>Quantidade:</label>
-              <input
-                type="number"
-                value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
-                placeholder="Digite a quantidade"
-                min="1"
-                className="input-quantidade"
+              <div className="form-group">
+                <label>Data</label>
+                <div className="input-with-icon">
+                  <input
+                    type="text"
+                    value={data}
+                    onChange={(e) => setData(e.target.value)}
+                    className="input-data"
+                  />
+                  <span className="icon-calendar">📅</span>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Hora</label>
+                <input
+                  type="text"
+                  value={hora}
+                  onChange={(e) => setHora(e.target.value)}
+                  className="input-hora"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Quantidade</label>
+                <input
+                  type="number"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(e.target.value)}
+                  placeholder=""
+                  className="input-quantidade"
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Preço unitário</label>
+                <input
+                  type="text"
+                  value={precoUnitario}
+                  onChange={(e) => setPrecoUnitario(e.target.value)}
+                  className="input-preco"
+                />
+              </div>
+            </div>
+
+            <div className="form-group full-width">
+              <label>Observações</label>
+              <textarea
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                className="textarea-observacoes"
+                rows="4"
               />
             </div>
 
-            <div className="campo">
-              <label>Descrição (opcional):</label>
-              <input
-                type="text"
-                value={descricao}
-                onChange={(e) => setDescricao(e.target.value)}
-                placeholder="Ex: Compra de fornecedor X"
-                className="input-descricao"
-              />
-            </div>
-
-            <div className="acoes">
+            <div className="modal-footer">
               <button 
-                onClick={() => ajustarEstoque('E')}
+                onClick={handleSalvar}
                 disabled={ajustando || !quantidade}
-                className="btn btn-adicionar"
+                className="btn-salvar"
               >
-                {ajustando ? 'Processando...' : `Adicionar ${quantidade || 0}`}
+                {ajustando ? 'Salvando...' : 'salvar'}
               </button>
-              
               <button 
-                onClick={() => ajustarEstoque('S')}
-                disabled={ajustando || !quantidade || produto.saldo_estoque?.Total < quantidade}
-                className="btn btn-remover"
+                onClick={handleFechar}
+                className="btn-cancelar"
               >
-                {ajustando ? 'Processando...' : `Remover ${quantidade || 0}`}
+                cancelar
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
