@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pathlib import Path
+import uvicorn
 import os
 from app.api import estoque
+from app.core.config import settings
 
 app = FastAPI(title="Dashboard Estoque API", version="2.0.0")
 
@@ -30,21 +31,27 @@ async def health_check():
 async def api_info():
     return {"message": "Dashboard Estoque API v2.0", "status": "online"}
 
-# Servir arquivos estáticos do frontend em produção
-static_path = Path("static")
-if static_path.exists():
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+# Servir arquivos estáticos do React em produção
+if os.path.exists("./static"):
+    # Montar os arquivos estáticos corretamente
+    if os.path.exists("./static/static"):
+        # Caso o React tenha criado static/static
+        app.mount("/static", StaticFiles(directory="./static/static"), name="static")
+    else:
+        # Caso normal
+        app.mount("/static", StaticFiles(directory="./static"), name="static")
     
-    # Catch-all para React Router
+    # Servir o app React
+    @app.get("/")
+    @app.get("/estoque")
     @app.get("/{full_path:path}")
-    async def serve_react_app(full_path: str):
-        # Se for uma rota da API, deixar passar
+    async def serve_react_app(full_path: str = ""):
+        # Se for uma rota de API, retornar 404
         if full_path.startswith("api/"):
-            return {"error": "Not found"}, 404
-            
-        # Servir index.html para todas as outras rotas
-        index_path = static_path / "index.html"
-        if index_path.exists():
-            return FileResponse(index_path)
-        return {"error": "Frontend not found"}, 404
+            return {"detail": "Not Found"}
+        
+        # Sempre servir o index.html para o React Router
+        return FileResponse('./static/index.html')
 
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

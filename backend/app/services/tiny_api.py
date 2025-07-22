@@ -76,21 +76,32 @@ class TinyAPIClient:
     ) -> Dict[str, Any]:
         """Altera estoque do produto no Tiny"""
         try:
-            # Monta o objeto estoque conforme documentação
+            # Formatar data atual
+            from datetime import datetime
+            data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # IMPORTANTE: Campo 'deposito' causa erro na API!
             estoque_data = {
-                'idProduto': produto_id,
-                'quantidade': str(quantidade),
-                'tipo': tipo,  # E=Entrada, S=Saída, B=Balanço
-                'deposito': deposito,
-                'observacoes': observacoes or f'Entrada via Dashboard v2.0'
+                'estoque': {  # DEVE ter wrapper 'estoque'!
+                    'idProduto': str(produto_id),  # String funciona!
+                    'tipo': tipo,  # E=Entrada, S=Saída, B=Balanço
+                    'quantidade': str(quantidade),  # String também!
+                    'data': data_atual,
+                    'precoUnitario': '25.78',  # Preço unitário
+                    'observacoes': observacoes or f'Entrada via Dashboard v2.0'
+                    # NÃO INCLUIR 'deposito' - causa erro!
+                }
             }
-            
+
             data = {
-                'estoque': json.dumps(estoque_data)  # Tiny espera JSON string
+                'estoque': json.dumps(estoque_data)  # Tiny espera um objeto JSON
             }
-            
+
             response = await self._make_request('produto.atualizar.estoque.php', data)
             
+            # Debug: log da resposta completa
+            logger.info(f"Resposta Tiny: {json.dumps(response, indent=2)}")
+
             if response.get('retorno', {}).get('status') == 'OK':
                 return {
                     'success': True,
@@ -98,15 +109,38 @@ class TinyAPIClient:
                     'response': response['retorno']
                 }
             else:
-                erros = response.get('retorno', {}).get('erros', [])
-                erro_msg = erros[0]['erro'] if erros else 'Erro desconhecido'
+                retorno = response.get('retorno', {})
+                # Verificar se há erros no nível do retorno
+                if 'erros' in retorno:
+                    erros = retorno.get('erros', [])
+                    erro_msg = erros[0]['erro'] if erros else 'Erro desconhecido'
+                # Verificar se há erros no nível do registro
+                elif 'registros' in retorno:
+                    registros = retorno.get('registros', [])
+                    if registros and isinstance(registros, list):
+                        registro = registros[0].get('registro', {})
+                    elif isinstance(registros, dict):
+                        registro = registros.get('registro', {})
+                    else:
+                        registro = {}
+                    
+                    if registro.get('status') == 'Erro':
+                        erros = registro.get('erros', [])
+                        erro_msg = erros[0]['erro'] if erros else 'Erro no registro'
+                    else:
+                        erro_msg = 'Resposta inesperada da API'
+                else:
+                    erro_msg = f'Status: {retorno.get("status", "Desconhecido")}'
+                    
+                logger.error(f"Erro retornado pelo Tiny ao alterar estoque: {erro_msg}")
+                logger.error(f"Resposta completa: {json.dumps(response, indent=2)}")
                 return {
                     'success': False,
                     'message': f'Erro ao atualizar estoque: {erro_msg}',
                     'response': response
                 }
         except Exception as e:
-            logger.error(f"Erro ao alterar estoque: {e}")
+            logger.exception(f"Exceção ao alterar estoque: {e}")
             return {
                 'success': False,
                 'message': f'Erro na comunicação com Tiny: {str(e)}',

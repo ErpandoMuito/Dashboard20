@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import EntradaEstoque from './components/EntradaEstoque';
+import GestaoEstoque from './components/GestaoEstoque';
 
 function App() {
   return (
@@ -15,7 +15,7 @@ function App() {
               <h1 style={{ textAlign: 'center', marginBottom: '30px', color: '#333' }}>
                 Dashboard Estoque v2.0
               </h1>
-              <EntradaEstoque />
+              <GestaoEstoque />
             </div>
           } />
         </Routes>

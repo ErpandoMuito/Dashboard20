@@ -42,6 +42,12 @@ export const estoqueAPI = {
     return response.data;
   },
 
+  // Saída de estoque
+  saidaEstoque: async (data) => {
+    const response = await api.post('/estoque/saida', data);
+    return response.data;
+  },
+
   // Buscar informações do produto
   buscarProduto: async (codigo) => {
     const response = await api.get(`/estoque/produto/${codigo}`);
@@ -51,6 +57,24 @@ export const estoqueAPI = {
   // Histórico de movimentações
   historicoProduto: async (codigo, limit = 10) => {
     const response = await api.get(`/estoque/historico/${codigo}?limit=${limit}`);
+    return response.data;
+  },
+
+  // Cache de produtos
+  popularCache: async (inicio = 1, fim = 999) => {
+    const response = await api.post('/estoque/cache/popular', { inicio, fim });
+    return response.data;
+  },
+
+  listarProdutosCache: async (prefixo = 'PH') => {
+    const response = await api.get(`/estoque/cache/produtos?prefixo=${prefixo}`);
+    return response.data;
+  },
+
+  limparCache: async (prefixo = null) => {
+    const response = await api.delete('/estoque/cache', { 
+      params: prefixo ? { prefixo } : {} 
+    });
     return response.data;
   }
 };
