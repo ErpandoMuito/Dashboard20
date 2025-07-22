@@ -30,6 +30,28 @@ app.include_router(estoque.router, prefix="/api/v2/estoque", tags=["estoque"])
 async def health_check():
     return {"status": "healthy"}
 
+# Debug endpoint para verificar estrutura de arquivos
+@app.get("/api/debug/static")
+async def debug_static():
+    static_info = {
+        "static_path": str(static_path.absolute()),
+        "static_exists": static_path.exists(),
+        "contents": []
+    }
+    
+    if static_path.exists():
+        for item in static_path.iterdir():
+            item_info = {
+                "name": item.name,
+                "is_dir": item.is_dir(),
+                "size": item.stat().st_size if item.is_file() else None
+            }
+            if item.is_dir():
+                item_info["contents"] = [sub.name for sub in item.iterdir()]
+            static_info["contents"].append(item_info)
+    
+    return static_info
+
 # API info endpoint
 @app.get("/api")
 async def api_info():
