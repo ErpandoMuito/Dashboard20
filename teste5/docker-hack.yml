@@ -1,0 +1,65 @@
+# 🚀 DOCKER COMPOSE HACKER - Zero config, 100% funcional!
+
+version: '3.8'
+
+services:
+  # HACK: Redis com persistência e sem senha (dev only!)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # HACK: App Python com hot reload
+  app:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+      - pip_cache:/root/.cache/pip
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_URL=redis://redis:6379
+      - TINY_API_TOKEN=${TINY_API_TOKEN:-token_aqui}
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: |
+      bash -c "
+        pip install fastapi uvicorn redis httpx python-multipart websockets PyPDF2 &&
+        python server_hack.py
+      "
+    restart: unless-stopped
+
+  # HACK: Nginx para servir tudo junto (opcional)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-hack.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    profiles:
+      - full
+
+volumes:
+  redis_data:
+  pip_cache:
+
+# HACK: Network customizada para performance
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

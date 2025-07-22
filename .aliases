@@ -1,0 +1,25 @@
+# Dashboard v2 Aliases
+
+# Desenvolvimento
+alias dev='make dev'
+alias backend='make backend-dev'
+alias frontend='make frontend-dev'
+
+# Testes
+alias test='make test'
+alias test-unit='cd backend && python -m pytest tests/unit -v'
+alias test-int='cd backend && python -m pytest tests/integration -v'
+alias test-all='cd backend && python -m pytest -v'
+
+# Docker
+alias up='docker-compose up -d'
+alias down='docker-compose down'
+alias logs='docker-compose logs -f'
+
+# Deploy
+alias deploy='fly deploy --app dashboard-estoque-v2'
+alias fly-logs='fly logs -a dashboard-estoque-v2'
+alias fly-status='fly status -a dashboard-estoque-v2'
+
+# Setup
+alias setup='make setup'

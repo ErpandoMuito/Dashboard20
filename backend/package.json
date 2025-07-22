@@ -1,0 +1,15 @@
+{
+  "name": "dashboard-estoque-backend",
+  "version": "2.0.0",
+  "description": "Backend FastAPI para Dashboard de Estoque",
+  "scripts": {
+    "dev": "uvicorn main:app --reload",
+    "start": "uvicorn main:app --host 0.0.0.0 --port 8000",
+    "test": "pytest -v -m 'not e2e'",
+    "test:unit": "pytest tests/unit -v",
+    "test:integration": "pytest tests/integration -v",
+    "test:all": "pytest -v",
+    "test:coverage": "pytest -v --cov=app --cov-report=html -m 'not e2e'",
+    "test:watch": "pytest-watch -- -v -m 'not e2e'"
+  }
+}
