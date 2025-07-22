@@ -19,7 +19,8 @@ jobs:
       env:
         FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       run: |
-        flyctl deploy --remote-only --app dashboard-estoque-v2
+        # Não usar --remote-only pois causa problemas
+        flyctl deploy --app dashboard-estoque-v2
 
     - name: Health Check
       run: |
