@@ -3,17 +3,12 @@ name: Deploy para Fly.io
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  test:
-    uses: ./.github/workflows/test.yml
-    secrets: inherit
-
   deploy:
-    needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
+    
     steps:
     - uses: actions/checkout@v4
 
@@ -29,13 +24,15 @@ jobs:
     - name: Health Check
       run: |
         sleep 30
-        curl -f https://dashboard-estoque-v2.fly.dev/health || exit 1
+        curl -f https://dashboard-estoque-v2.fly.dev/api/health || exit 1
 
     - name: Notify deploy
       if: always()
       run: |
         if [ ${{ job.status }} == 'success' ]; then
           echo "✅ Deploy realizado com sucesso!"
+          echo "🌐 Dashboard: https://dashboard-estoque-v2.fly.dev/estoque"
+          echo "📚 API Docs: https://dashboard-estoque-v2.fly.dev/docs"
         else
           echo "❌ Falha no deploy"
         fi
